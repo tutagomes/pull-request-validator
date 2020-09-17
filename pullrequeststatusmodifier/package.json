@@ -1,0 +1,20 @@
+{
+  "name": "pull-request-completer",
+  "version": "1.0.0",
+  "description": "A Azure DevOps Pull-Request Auto Completer",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "azure-devops-node-api": "^10.1.1",
+    "azure-pipelines-task-lib": "^2.10.1",
+    "typed-rest-client": "^1.7.3"
+  },
+  "devDependencies": {
+    "@types/node": "^14.10.2",
+    "@types/q": "^1.5.4"
+  }
+}

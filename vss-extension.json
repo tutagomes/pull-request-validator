@@ -1,0 +1,40 @@
+{
+    "manifestVersion": 1,
+    "id": "pull-request-status-modifier",
+    "name": "Pull Request Status Modifier",
+    "version": "0.0.12",
+    "publisher": "tutagomes",
+    "targets": [
+        {
+            "id": "Microsoft.VisualStudio.Services"
+        }
+    ],    
+    "description": "Tool for updating Pull Request Status based on Build/Releases ",
+    "categories": [
+        "Azure Pipelines"
+    ],
+    "icons": {
+        "default": "images/extension-icon.png"        
+    },
+    "files": [
+        {
+            "path": "pullrequeststatusmodifier"
+        }
+    ],
+    "repository": {
+        "type": "git",
+        "uri": "https://github.com/tutagomes/pull-request-validator"
+    },
+    "contributions": [
+        {
+            "id": "custom-build-release-task",
+            "type": "ms.vss-distributed-task.task",
+            "targets": [
+                "ms.vss-distributed-task.tasks"
+            ],
+            "properties": {
+                "name": "pullrequeststatusmodifier"
+            }
+        }
+    ]
+}
