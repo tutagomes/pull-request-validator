@@ -89,7 +89,7 @@ async function run() {
             }
             let body = {
                 autoCompleteSetBy: {
-                    id: tl.getInput('autoComplete', true) === "1" ? response.createdBy!.id : ''
+                    id: tl.getInput('autoComplete', true) === "1" ? response.createdBy!.id : '00000000-0000-0000-0000-000000000000'
                 },
                 completionOptions: {
                     deleteSourceBranch: tl.getInput('deletesourcebranch', true) === 'true' ? true : false,
