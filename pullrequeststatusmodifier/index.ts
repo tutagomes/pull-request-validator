@@ -73,7 +73,7 @@ async function run() {
         let response = await gitapi.createPullRequestStatus(status, repositoryId, pullRequestId, tl.getInput('projectId', true));
 
         // Caso o usuário queira habilitar/desabilitar o auto complete do PR
-        if (tl.getInput('autoComplete', true) !== "3") {
+        if (tl.getInput('autocomplete', true) !== "3") {
             let mergeStategy = GitPullRequestMergeStrategy.NoFastForward
             let choosenStrategy = tl.getInput('mergestrategy', true)
             switch (choosenStrategy) {
@@ -89,7 +89,7 @@ async function run() {
             }
             let body = {
                 autoCompleteSetBy: {
-                    id: tl.getInput('autoComplete', true) === "1" ? response.createdBy!.id : '00000000-0000-0000-0000-000000000000'
+                    id: tl.getInput('autocomplete', true) === "1" ? response.createdBy!.id : '00000000-0000-0000-0000-000000000000'
                 },
                 completionOptions: {
                     deleteSourceBranch: tl.getInput('deletesourcebranch', true) === 'true' ? true : false,
