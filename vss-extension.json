@@ -2,19 +2,23 @@
     "manifestVersion": 1,
     "id": "pull-request-status-modifier",
     "name": "Pull Request Status Modifier",
-    "version": "0.0.12",
+    "version": "0.0.13",
     "publisher": "tutagomes",
     "targets": [
         {
             "id": "Microsoft.VisualStudio.Services"
         }
-    ],    
+    ],
+    "public": true,
+    "galleryFlags": [
+        "Preview"
+    ],
     "description": "Tool for updating Pull Request Status based on Build/Releases ",
     "categories": [
         "Azure Pipelines"
     ],
     "icons": {
-        "default": "images/extension-icon.png"        
+        "default": "images/icon.png"        
     },
     "files": [
         {
@@ -36,5 +40,10 @@
                 "name": "pullrequeststatusmodifier"
             }
         }
-    ]
+    ],
+    "content": {
+        "details": {
+            "path": "README.md"
+        }
+    }
 }
