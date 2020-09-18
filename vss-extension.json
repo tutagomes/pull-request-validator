@@ -2,7 +2,7 @@
     "manifestVersion": 1,
     "id": "pull-request-status-modifier",
     "name": "Pull Request Status Modifier",
-    "version": "0.0.13",
+    "version": "0.0.15",
     "publisher": "tutagomes",
     "targets": [
         {
