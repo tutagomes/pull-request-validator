@@ -7,7 +7,6 @@ async function run() {
         // Conectando com Token e recolhendo API
         let token: any = tl.getEndpointAuthorizationParameter("SYSTEMVSSCONNECTION", "AccessToken", false);
         let collectionUrl: string = tl.getEndpointUrl("SYSTEMVSSCONNECTION", false).replace(".vsrm.visualstudio.com", ".visualstudio.com"); // need build
-        console.log(collectionUrl)
         let authHandler = token.length === 52 ? vsts.getPersonalAccessTokenHandler(token) : vsts.getBearerHandler(token);
         let connection = new vsts.WebApi(collectionUrl, authHandler);
         let gitapi = await connection.getGitApi();
@@ -71,7 +70,7 @@ async function run() {
         }
         // Cria o status no PR
         let response = await gitapi.createPullRequestStatus(status, repositoryId, pullRequestId, tl.getInput('projectId', true));
-
+        console.log(response)
         // Caso o usuário queira habilitar/desabilitar o auto complete do PR
         if (tl.getInput('autocomplete', true) !== "3") {
             let mergeStategy = GitPullRequestMergeStrategy.NoFastForward
