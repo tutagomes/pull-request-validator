@@ -14,6 +14,35 @@ async function run() {
             tl.setResult(tl.TaskResult.Failed, msg);
             return
         }
+
+        let opts = {
+            enableComment: tl.getInput('enablecomment', true)!,
+            comment: tl.getInput('comment', true)!,
+            commentOnce: tl.getInput('commentonce')!,
+            justReturn: tl.getInput('justReturn', true)!,
+            getDefault: tl.getInput('getDefaults')!
+        }
+        let config = {
+            sourcebranch: tl.getVariable('build.pullrequest.sourceBranch')!,
+            targetbranch: tl.getVariable('build.pullrequest.targetBranch')!,
+            repoId: tl.getVariable('build.repository.id')!,
+            projectId: tl.getVariable('build.projectId')!,
+            releaseId: tl.getVariable('Release.ReleaseId')!,
+            pullRequestId: tl.getVariable('build.pullrequest.id')!,
+            sourceBranchName: tl.getVariable('build.pullrequest.sourceBranchName')!
+        }
+        if (!opts.getDefault) {
+            config = {
+                sourcebranch: tl.getInput('sourcebranch')!,
+                targetbranch: tl.getInput('targetbranch')!,
+                repoId: tl.getInput('repoId')!,
+                projectId: tl.getInput('projectId')!,
+                releaseId: tl.getInput('projectId')!,
+                pullRequestId: '-1',
+                sourceBranchName: ''
+            }
+        }
+
         let token: any = tl.getEndpointAuthorizationParameter("SYSTEMVSSCONNECTION", "AccessToken", false);
         let collectionUrl: string = tl.getEndpointUrl("SYSTEMVSSCONNECTION", false).replace(".vsrm.visualstudio.com", ".visualstudio.com"); // need build
 
@@ -22,32 +51,21 @@ async function run() {
         let gitapi = await connection.getGitApi();
         const vstsReleaseApi = await connection.getReleaseApi();
 
-
-        let repositoryId = tl.getInput('repoId', true)!
-
         // Preparando para procurar o Pull Request e Recolher o ID
         let searchCriteria = {
-            repositoryId: repositoryId,
-            sourceRefName: tl.getInput('sourcebranch', true)!,
-            targetRefName: tl.getInput('targetbranch', true)!
+            repositoryId: config.repoId!,
+            sourceRefName: config.sourcebranch!,
+            targetRefName: config.targetbranch!
         }
 
-        let pullRequestId = -1
-        let pullRequest
-
-        // Caso seja um branch já do tipo refs/pull/{pullId}/merge, não é necessário buscar na API
-        if (searchCriteria.sourceRefName.includes('pull')) {
-            pullRequestId = parseInt(searchCriteria.sourceRefName.split('/')[2])
-            pullRequest = await gitapi.getPullRequest(repositoryId, pullRequestId, tl.getInput('projectId', true))
-        }
-        // Caso contrário, bora buscar lá na API e pegar o primeiro encontrado com os parâmetros definidos
-        else {
-            let pullRequestResult = await gitapi.getPullRequests(repositoryId, searchCriteria, tl.getInput('projectId', true))
+        // Caso não tenha nada passado
+        if (!opts.getDefault) {
+            let pullRequestResult = await gitapi.getPullRequests(config.repoId, searchCriteria, config.projectId)
             // Caso encontre
             if (pullRequestResult.length > 0) {
-                pullRequestId = pullRequestResult[0].pullRequestId!
-                pullRequest = pullRequestResult[0]!
-            } else {
+                config.pullRequestId = pullRequestResult[0]!.pullRequestId!.toString()
+                config.sourceBranchName = pullRequestResult[0]!.sourceRefName!
+             } else {
                 // Caso não encontre, já enviar um erro e finalizar a task
                 let msg = 'Pull Request from ' + searchCriteria.sourceRefName + ' -->> ' + searchCriteria.targetRefName + ' was not found'
                 console.log(msg)
@@ -57,36 +75,52 @@ async function run() {
         }
 
         // Informações para atualização de Release e possível adição de comentário em pull request
-        const releaseId = tl.getVariable("Release.ReleaseId")!;
         let newName = tl.getInput('releasename', true)!
-        let branchName = pullRequest ? (pullRequest.sourceRefName || '').split('heads/')[1] : ''
+        let branchName = config.sourceBranchName
         newName = newName.replace("%sourcebranch%", branchName)
-        console.log("Pull Request")
-        console.log(pullRequest)
-        console.log("Novo Nome")
-        console.log(newName)
-        console.log("SourceBranch")
-        console.log(branchName)
-        console.log("Source Ref Name")
-        console.log(pullRequest.sourceRefName)
+
+        tl.setVariable('PRSOURCEBRANCH', config.sourcebranch)
+        tl.setVariable('PRSOURCEBRANCHNAME', config.sourceBranchName)
+
+        // Caso seja só para recolher as variáveis
+        if (opts.justReturn) {
+            return
+        }
+
         // Criando objeto para atualização
-        const metaData: ReleaseUpdateMetadata = <ReleaseUpdateMetadata>{ name:  newName};
+        const metaData: ReleaseUpdateMetadata = <ReleaseUpdateMetadata>{ name:  newName };
+        
         // Atualiza nome da release
-        await vstsReleaseApi.updateReleaseResource(metaData, tl.getInput('projectId', true)!, parseInt(releaseId));
+        await vstsReleaseApi.updateReleaseResource(metaData, config.projectId, parseInt(config.releaseId));
 
         // Caso o usuário queira comentar algo no Pull Request
-        if (tl.getInput('enablecomment', true)) {
+        if (opts.enableComment) {
             // Criando thread
             let threadInfo: GitPullRequestCommentThread = {}
+
             // Montando comentário
             let comment: Comment = {}
-            comment.commentType = CommentType.System
-            comment.content = (tl.getInput('comment', true)!).replace("%sourcebranch%", branchName)
+            comment.commentType = CommentType.Unknown
+            comment.content = (opts.comment).replace("%sourcebranch%", branchName)
             threadInfo.comments = []
             threadInfo.comments.push(comment)
-
-            // Criando comentário
-            await gitapi.createThread(threadInfo, repositoryId, pullRequestId)
+            let alreadyCommented = false
+            if (opts.commentOnce) {
+                let threads = await gitapi.getThreads(config.repoId, parseInt(config.pullRequestId), config.projectId)
+                for (let th of threads) {
+                    for (let cmmt of th.comments!) {
+                        if (cmmt.content === comment.content) {
+                            alreadyCommented = true
+                            break
+                        }
+                    }
+                }
+            }
+            // Caso não tenha comentado ou não tenha encontrado comentário igual, comente
+            if (!alreadyCommented) {
+                // Criando comentário
+                await gitapi.createThread(threadInfo, config.repoId, parseInt(config.pullRequestId))
+            }
         }
     }
     catch (err) {
