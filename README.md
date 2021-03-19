@@ -37,10 +37,10 @@ tfx extension create --manifest-globs vss-extension.json
 
 - Criar documentação de como utilizar
   - ~~Fluxo de Desenvolvimento em diagrama~~
-  - Opções da Task
-  - Motivo de criação
+  - Explicação sobre cada opção da Task
+  - Motivo de criação da extensão e seus casos de uso
 - Explicitar permissões necessárias
-  - Visualizar problemas comuns
+  - Visualizar problemas comuns reportados pela comunidade nos links:
     - https://github.com/MicrosoftDocs/azure-devops-docs/issues/5159
     - https://github.com/microsoft/azure-devops-node-api/issues/300
     - https://github.com/shayki5/azure-devops-create-pr-task/issues/35

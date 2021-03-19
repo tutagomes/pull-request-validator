@@ -2,7 +2,7 @@
     "manifestVersion": 1,
     "id": "pull-request-status-modifier",
     "name": "Pull Request Tasks Collection",
-    "version": "0.0.32",
+    "version": "0.0.44",
     "publisher": "tutagomes",
     "targets": [
         {

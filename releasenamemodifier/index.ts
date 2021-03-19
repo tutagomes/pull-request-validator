@@ -7,14 +7,12 @@ async function run() {
     try {
         // Conectando com Token e recolhendo API
         const hostType: string = tl.getVariable("System.HostType")!;
-
         if (hostType === 'build') {
             let msg = 'Cannot be run within build definition!'
             console.log(msg)
             tl.setResult(tl.TaskResult.Failed, msg);
             return
         }
-
         let opts = {
             enableComment: tl.getInput('enablecomment', true)!,
             comment: tl.getInput('comment', true)!,
@@ -31,7 +29,8 @@ async function run() {
             pullRequestId: tl.getVariable('build.pullrequest.id')!,
             sourceBranchName: tl.getVariable('build.pullrequest.sourceBranchName')!
         }
-        if (!opts.getDefault) {
+
+        if (opts.getDefault === 'false') {
             config = {
                 sourcebranch: tl.getInput('sourcebranch')!,
                 targetbranch: tl.getInput('targetbranch')!,
@@ -59,7 +58,7 @@ async function run() {
         }
 
         // Caso não tenha nada passado
-        if (!opts.getDefault) {
+        if (opts.getDefault === 'false') {
             let pullRequestResult = await gitapi.getPullRequests(config.repoId, searchCriteria, config.projectId)
             // Caso encontre
             if (pullRequestResult.length > 0) {
@@ -83,18 +82,22 @@ async function run() {
         tl.setVariable('PRSOURCEBRANCHNAME', config.sourceBranchName)
 
         // Caso seja só para recolher as variáveis
-        if (opts.justReturn) {
+        if (opts.justReturn === 'true') {
             return
         }
 
         // Criando objeto para atualização
         const metaData: ReleaseUpdateMetadata = <ReleaseUpdateMetadata>{ name:  newName };
-        
-        // Atualiza nome da release
-        await vstsReleaseApi.updateReleaseResource(metaData, config.projectId, parseInt(config.releaseId));
 
+        // Atualiza nome da release
+        try {
+            let response = await vstsReleaseApi.updateReleaseResource(metaData, config.projectId, parseInt(config.releaseId));
+        } catch (e) {
+            console.log(e)
+        }
+        
         // Caso o usuário queira comentar algo no Pull Request
-        if (opts.enableComment) {
+        if (opts.enableComment === 'true') {
             // Criando thread
             let threadInfo: GitPullRequestCommentThread = {}
 
@@ -105,7 +108,7 @@ async function run() {
             threadInfo.comments = []
             threadInfo.comments.push(comment)
             let alreadyCommented = false
-            if (opts.commentOnce) {
+            if (opts.commentOnce === 'true') {
                 let threads = await gitapi.getThreads(config.repoId, parseInt(config.pullRequestId), config.projectId)
                 for (let th of threads) {
                     for (let cmmt of th.comments!) {
@@ -124,6 +127,7 @@ async function run() {
         }
     }
     catch (err) {
+        console.log(err)
         tl.setResult(tl.TaskResult.Failed, err.message);
     }
 }
