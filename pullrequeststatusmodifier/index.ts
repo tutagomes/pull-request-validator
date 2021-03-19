@@ -1,6 +1,169 @@
 import tl = require('azure-pipelines-task-lib/task');
 import * as vsts from "azure-devops-node-api";
-import { GitPullRequestMergeStrategy, GitStatusState } from "azure-devops-node-api/interfaces/GitInterfaces";
+import { GitPullRequestMergeStrategy, GitStatusState, PullRequestStatus } from "azure-devops-node-api/interfaces/GitInterfaces";
+import { GitApi } from 'azure-devops-node-api/GitApi';
+
+
+class PullRequestConfig {
+
+    autoComplete: boolean = false;
+    deleteSourceBrach: boolean = false;
+    closeWorkItens: boolean = false;
+    mergeStrategy: GitPullRequestMergeStrategy = GitPullRequestMergeStrategy.NoFastForward
+
+}
+
+class Config {
+
+    soruceBranch: string = '';
+    targetBranch: string = '';
+    repoId: string = '';
+    projectId: string = '';
+    pullRequestId: number = -1;
+    referenceUrl: string = '';
+    msgValidacao: string = '';
+    state: GitStatusState = GitStatusState.NotSet;
+    prUpdateConfig: PullRequestConfig = new PullRequestConfig();
+
+}
+
+class PRMStatusodifier {
+
+    gitApi: GitApi;
+    config: Config = new Config();
+    configurated: boolean = false;
+    createdBy: string = '00000000-0000-0000-0000-000000000000'
+
+    constructor (gitAPI: GitApi) {
+        this.gitApi = gitAPI
+    }
+
+    async loadAndParseSettings (taskLib: any) {
+        
+        let getDefault = taskLib.getInput('getDefaults')!
+        
+        let isRelease = taskLib.getVariable('Agent.JobName') === 'Release'
+        this.config.msgValidacao = taskLib.getInput('msgvalidacao', true)!
+        this.config.referenceUrl = isRelease ? taskLib.getVariable('Release.ReleaseWebURL') : taskLib.getVariable('Build.BuildUri')
+        this.config.pullRequestId = isRelease ? taskLib.getVariable('Build.PullRequest.id')! : taskLib.getVariable('System.PullRequest.PullRequestId')!
+        this.config.projectId = isRelease ? taskLib.getVariable('Build.projectId')! : taskLib.getVariable('System.TeamProjectId')!
+        this.config.repoId = isRelease ? taskLib.getVariable('Build.Repository.id')! : taskLib.getVariable('Build.Repository.ID')!
+        this.config.targetBranch = isRelease ? taskLib.getVariable('Build.PullRequest.TargetBranch')! : taskLib.getVariable('System.PullRequest.TargetBranch')!
+        this.config.soruceBranch = isRelease ? taskLib.getVariable('Build.PullRequest.SourceBranch')! : taskLib.getVariable('System.PullRequest.SourceBranch')!
+
+        if (getDefault === 'false') {
+            this.config.soruceBranch = taskLib.getInput('sourcebranch')!
+            this.config.targetBranch = taskLib.getInput('targetbranch')!
+            this.config.repoId = taskLib.getInput('repoId')!
+            this.config.projectId = taskLib.getInput('projectId')!
+            this.config.pullRequestId = -1
+        }
+
+         // Preparando para procurar o Pull Request e Recolher o ID
+         let searchCriteria = {
+            repositoryId: this.config.repoId,
+            sourceRefName: this.config.soruceBranch,
+            targetRefName: this.config.targetBranch
+        }
+
+        // Caso seja um branch já do tipo refs/pull/{pullId}/merge, não é necessário buscar na API
+        if (searchCriteria.sourceRefName.includes('pull')) {
+            this.config.pullRequestId = parseInt(searchCriteria.sourceRefName.split('/')[2])
+        }
+        // Caso contrário, bora buscar lá na API e pegar o primeiro encontrado com os parâmetros definidos
+        else {
+            let pullRequestResult = await this.gitApi.getPullRequests(this.config.repoId, searchCriteria, this.config.projectId)
+            // Caso encontre
+            if (pullRequestResult.length > 0) {
+                this.config.pullRequestId = pullRequestResult[0].pullRequestId!
+            } else {
+                // Caso não encontre, já enviar um erro e finalizar a task
+                let msg = 'Pull Request from ' + searchCriteria.sourceRefName + ' -->> ' + searchCriteria.targetRefName + ' was not found'
+                console.log(msg)
+                tl.setResult(tl.TaskResult.Failed, msg);
+                return
+            }
+        }
+        // Escolhendo o status do PR
+        switch (taskLib.getInput('prstatus', true)) {
+            case "1":
+                this.config.state = GitStatusState.Pending
+                break;
+            case "2":
+                this.config.state = GitStatusState.Succeeded
+                break;
+            case "3":
+                this.config.state = GitStatusState.Failed
+                break;
+            case "4":
+                this.config.state = GitStatusState.Error
+                break;
+        }
+        // Caso o usuário queira habilitar/desabilitar o auto complete do PR
+        if (taskLib.getInput('autocomplete', true) !== "3") {
+            this.config.prUpdateConfig.autoComplete = true
+            // Configurando opções de PR
+            let choosenStrategy = taskLib.getInput('mergestrategy', true)
+            switch (choosenStrategy) {
+                case "2":
+                    this.config.prUpdateConfig.mergeStrategy = GitPullRequestMergeStrategy.Squash
+                    break;
+                case "3":
+                    this.config.prUpdateConfig.mergeStrategy = GitPullRequestMergeStrategy.Rebase
+                    break;
+                case "4":
+                    this.config.prUpdateConfig.mergeStrategy = GitPullRequestMergeStrategy.RebaseMerge
+                    break;
+            }
+            this.config.prUpdateConfig.deleteSourceBrach = taskLib.getInput('deletesourcebranch', true) === 'true' ? true : false
+            this.config.prUpdateConfig.closeWorkItens = taskLib.getInput('closeworkitens', true) === 'true' ? true : false
+        }
+    }
+
+    async createPullRequestStatus () {
+        if (!this.configurated) {
+            throw new Error("You must configure with loadAndParseSettings before calling this method!")
+        }
+        // Montando objeto de criação de status
+        let status = {
+            "state": this.config.state,
+            "description": this.config.msgValidacao,
+            "targetUrl": this.config.referenceUrl,
+            "context": {
+                "name": "deploy-checker",
+                "genre": "continuous-deploy"
+            }
+        };
+
+        // Cria o status no PR
+        let response = await this.gitApi.createPullRequestStatus(status, this.config.repoId, this.config.pullRequestId, this.config.projectId);
+        console.log(response)
+        this.createdBy = response.createdBy!.id ? response.createdBy!.id : this.createdBy
+    }
+
+    async updatePullRequest () {
+        
+        if (!this.configurated) {
+            throw new Error("You must configure with loadAndParseSettings before calling this method!")
+        }
+        if (!this.config.prUpdateConfig.autoComplete) {
+            console.log("You asked to not update Pull Request")
+            return
+        }
+        let body = {
+            autoCompleteSetBy: {
+                id: this.createdBy
+            },
+            completionOptions: {
+                deleteSourceBranch: this.config.prUpdateConfig.deleteSourceBrach,
+                mergeStrategy: this.config.prUpdateConfig.mergeStrategy,
+                transitionWorkItems: this.config.prUpdateConfig.closeWorkItens
+            }
+        }
+        let result = await this.gitApi.updatePullRequest(body, this.config.repoId, this.config.pullRequestId, this.config.projectId)
+        console.log(result)
+    }
+}
 
 async function run() {
     try {
@@ -11,117 +174,11 @@ async function run() {
         let connection = new vsts.WebApi(collectionUrl, authHandler);
         let gitapi = await connection.getGitApi();
 
-        // Escolhendo o status do PR
-        let state = GitStatusState.NotSet;
-        switch (tl.getInput('prstatus', true)) {
-            case "1":
-                state = GitStatusState.Pending
-                break;
-            case "2":
-                state = GitStatusState.Succeeded
-                break;
-            case "3":
-                state = GitStatusState.Failed
-                break;
-            case "4":
-                state = GitStatusState.Error
-                break;
-        }
-        let opts = {
-            getDefault: tl.getInput('getDefaults')!
-        }
-        let isRelease = tl.getVariable('Agent.JobName') === 'Release'
-        let config = {
-            sourcebranch: isRelease ? tl.getVariable('build.pullrequest.sourceBranch')! : tl.getVariable('System.PullRequest.SourceBranch')!,
-            targetbranch: isRelease ? tl.getVariable('Build.PullRequest.TargetBranch')! : tl.getVariable('System.PullRequest.TargetBranch')!,
-            repoId: isRelease ? tl.getVariable('build.repository.id')! : tl.getVariable('Build.Repository.ID')!,
-            projectId: isRelease ? tl.getVariable('build.projectId')! : tl.getVariable('System.TeamProjectId')!,
-            pullRequestId: isRelease ? tl.getVariable('build.pullrequest.id')! : tl.getVariable('System.PullRequest.PullRequestId')!,
-            referenceUrl: isRelease ? tl.getVariable('Release.ReleaseWebURL') : tl.getVariable('Build.BuildUri')
-        }
-
-        if (opts.getDefault === 'false') {
-            config = {
-                sourcebranch: tl.getInput('sourcebranch')!,
-                targetbranch: tl.getInput('targetbranch')!,
-                repoId: tl.getInput('repoId')!,
-                projectId: tl.getInput('projectId')!,
-                pullRequestId: '-1',
-                referenceUrl: isRelease ?  tl.getVariable('Release.ReleaseWebURL') :  tl.getVariable('Build.BuildUri')
-            }
-        }
-
-        // Montando objeto de criação de status
-        let status = {
-            "state": state,
-            "description": tl.getInput('msgvalidacao', true)!,
-            "targetUrl": config.referenceUrl,
-            "context": {
-                "name": "deploy-checker",
-                "genre": "continuous-deploy"
-            }
-        };
-                
-        // Preparando para procurar o Pull Request e Recolher o ID
-        let searchCriteria = {
-            repositoryId: config.repoId,
-            sourceRefName: config.sourcebranch,
-            targetRefName: config.targetbranch
-        }
-
-        let pullRequestId = -1
-        console.log(config)
-        console.log(opts)
-        console.log(searchCriteria)
-        // Caso seja um branch já do tipo refs/pull/{pullId}/merge, não é necessário buscar na API
-        if (searchCriteria.sourceRefName.includes('pull')) {
-            pullRequestId = parseInt(searchCriteria.sourceRefName.split('/')[2])
-        }
-        // Caso contrário, bora buscar lá na API e pegar o primeiro encontrado com os parâmetros definidos
-        else {
-            let pullRequestResult = await gitapi.getPullRequests(config.repoId, searchCriteria, config.projectId)
-            // Caso encontre
-            if (pullRequestResult.length > 0) {
-                pullRequestId = pullRequestResult[0].pullRequestId!
-            } else {
-                // Caso não encontre, já enviar um erro e finalizar a task
-                let msg = 'Pull Request from ' + searchCriteria.sourceRefName + ' -->> ' + searchCriteria.targetRefName + ' was not found'
-                console.log(msg)
-                tl.setResult(tl.TaskResult.Failed, msg);
-                return
-            }
-        }
-        // Cria o status no PR
-        let response = await gitapi.createPullRequestStatus(status, config.repoId, parseInt(config.pullRequestId), config.projectId);
-        console.log(response)
-        // Caso o usuário queira habilitar/desabilitar o auto complete do PR
-        if (tl.getInput('autocomplete', true) !== "3") {
-            let mergeStategy = GitPullRequestMergeStrategy.NoFastForward
-            let choosenStrategy = tl.getInput('mergestrategy', true)
-            switch (choosenStrategy) {
-                case "2":
-                    mergeStategy = GitPullRequestMergeStrategy.Squash
-                    break;
-                case "3":
-                    mergeStategy = GitPullRequestMergeStrategy.Rebase
-                    break;
-                case "4":
-                    mergeStategy = GitPullRequestMergeStrategy.RebaseMerge
-                    break;
-            }
-            let body = {
-                autoCompleteSetBy: {
-                    id: tl.getInput('autocomplete', true) === "1" ? response.createdBy!.id : '00000000-0000-0000-0000-000000000000'
-                },
-                completionOptions: {
-                    deleteSourceBranch: tl.getInput('deletesourcebranch', true) === 'true' ? true : false,
-                    mergeStrategy: mergeStategy,
-                    transitionWorkItems: tl.getInput('closeworkitens', true) === 'true' ? true : false
-                }
-            }
-            let result = await gitapi.updatePullRequest(body, config.repoId, parseInt(config.pullRequestId), config.projectId)
-            console.log(result)
-        }
+        let prStatusModififer = new PRMStatusodifier(gitapi)
+        await prStatusModififer.loadAndParseSettings(tl)
+        await prStatusModififer.createPullRequestStatus()
+        await prStatusModififer.updatePullRequest()
+        
     }
     catch (err) {
         tl.setResult(tl.TaskResult.Failed, err.message);
