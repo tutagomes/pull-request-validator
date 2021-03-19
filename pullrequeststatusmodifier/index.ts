@@ -7,7 +7,6 @@ async function run() {
         // Conectando com Token e recolhendo API
         let token: any = tl.getEndpointAuthorizationParameter("SYSTEMVSSCONNECTION", "AccessToken", false);
         let collectionUrl: string = tl.getEndpointUrl("SYSTEMVSSCONNECTION", false).replace(".vsrm.visualstudio.com", ".visualstudio.com"); // need build
-        console.log(collectionUrl)
         let authHandler = token.length === 52 ? vsts.getPersonalAccessTokenHandler(token) : vsts.getBearerHandler(token);
         let connection = new vsts.WebApi(collectionUrl, authHandler);
         let gitapi = await connection.getGitApi();
@@ -28,36 +27,59 @@ async function run() {
                 state = GitStatusState.Error
                 break;
         }
-        
+        let opts = {
+            getDefault: tl.getInput('getDefaults')!
+        }
+        let isRelease = tl.getVariable('Agent.JobName') === 'Release'
+        let config = {
+            sourcebranch: isRelease ? tl.getVariable('build.pullrequest.sourceBranch')! : tl.getVariable('System.PullRequest.SourceBranch')!,
+            targetbranch: isRelease ? tl.getVariable('Build.PullRequest.TargetBranch')! : tl.getVariable('System.PullRequest.TargetBranch')!,
+            repoId: isRelease ? tl.getVariable('build.repository.id')! : tl.getVariable('Build.Repository.ID')!,
+            projectId: isRelease ? tl.getVariable('build.projectId')! : tl.getVariable('System.TeamProjectId')!,
+            pullRequestId: isRelease ? tl.getVariable('build.pullrequest.id')! : tl.getVariable('System.PullRequest.PullRequestId')!,
+            referenceUrl: isRelease ? tl.getVariable('Release.ReleaseWebURL') : tl.getVariable('Build.BuildUri')
+        }
+
+        if (opts.getDefault === 'false') {
+            config = {
+                sourcebranch: tl.getInput('sourcebranch')!,
+                targetbranch: tl.getInput('targetbranch')!,
+                repoId: tl.getInput('repoId')!,
+                projectId: tl.getInput('projectId')!,
+                pullRequestId: '-1',
+                referenceUrl: isRelease ?  tl.getVariable('Release.ReleaseWebURL') :  tl.getVariable('Build.BuildUri')
+            }
+        }
+
         // Montando objeto de criação de status
         let status = {
             "state": state,
             "description": tl.getInput('msgvalidacao', true)!,
-            "targetUrl": "https://visualstudio.microsoft.com",
+            "targetUrl": config.referenceUrl,
             "context": {
                 "name": "deploy-checker",
                 "genre": "continuous-deploy"
             }
         };
                 
-        let repositoryId = tl.getInput('repoId', true)!
-
         // Preparando para procurar o Pull Request e Recolher o ID
         let searchCriteria = {
-            repositoryId: repositoryId,
-            sourceRefName: tl.getInput('sourcebranch', true)!,
-            targetRefName: tl.getInput('targetbranch', true)!
+            repositoryId: config.repoId,
+            sourceRefName: config.sourcebranch,
+            targetRefName: config.targetbranch
         }
 
         let pullRequestId = -1
-        
+        console.log(config)
+        console.log(opts)
+        console.log(searchCriteria)
         // Caso seja um branch já do tipo refs/pull/{pullId}/merge, não é necessário buscar na API
         if (searchCriteria.sourceRefName.includes('pull')) {
             pullRequestId = parseInt(searchCriteria.sourceRefName.split('/')[2])
         }
         // Caso contrário, bora buscar lá na API e pegar o primeiro encontrado com os parâmetros definidos
         else {
-            let pullRequestResult = await gitapi.getPullRequests(repositoryId, searchCriteria, tl.getInput('projectId', true))
+            let pullRequestResult = await gitapi.getPullRequests(config.repoId, searchCriteria, config.projectId)
             // Caso encontre
             if (pullRequestResult.length > 0) {
                 pullRequestId = pullRequestResult[0].pullRequestId!
@@ -70,8 +92,8 @@ async function run() {
             }
         }
         // Cria o status no PR
-        let response = await gitapi.createPullRequestStatus(status, repositoryId, pullRequestId, tl.getInput('projectId', true));
-
+        let response = await gitapi.createPullRequestStatus(status, config.repoId, parseInt(config.pullRequestId), config.projectId);
+        console.log(response)
         // Caso o usuário queira habilitar/desabilitar o auto complete do PR
         if (tl.getInput('autocomplete', true) !== "3") {
             let mergeStategy = GitPullRequestMergeStrategy.NoFastForward
@@ -97,7 +119,7 @@ async function run() {
                     transitionWorkItems: tl.getInput('closeworkitens', true) === 'true' ? true : false
                 }
             }
-            let result = await gitapi.updatePullRequest(body, repositoryId, pullRequestId, tl.getInput('projectId', true))
+            let result = await gitapi.updatePullRequest(body, config.repoId, parseInt(config.pullRequestId), config.projectId)
             console.log(result)
         }
     }

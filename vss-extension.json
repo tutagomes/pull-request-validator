@@ -1,8 +1,8 @@
 {
     "manifestVersion": 1,
     "id": "pull-request-status-modifier",
-    "name": "Pull Request Status Modifier",
-    "version": "0.0.18",
+    "name": "Pull Request Tasks Collection",
+    "version": "0.0.44",
     "publisher": "tutagomes",
     "targets": [
         {
@@ -13,7 +13,7 @@
     "galleryFlags": [
         "Preview"
     ],
-    "description": "Tool for updating Pull Request Status based on Build/Releases ",
+    "description": "Tool for updating and commenting on Pull Request based on Build/Releases",
     "categories": [
         "Azure Pipelines"
     ],
@@ -23,6 +23,9 @@
     "files": [
         {
             "path": "pullrequeststatusmodifier"
+        },
+        {
+            "path": "releasenamemodifier"
         }
     ],
     "repository": {
@@ -38,6 +41,16 @@
             ],
             "properties": {
                 "name": "pullrequeststatusmodifier"
+            }
+        },
+        {
+            "id": "release-name-modifier",
+            "type": "ms.vss-distributed-task.task",
+            "targets": [
+                "ms.vss-distributed-task.tasks"
+            ],
+            "properties": {
+                "name": "releasenamemodifier"
             }
         }
     ],
