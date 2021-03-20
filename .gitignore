@@ -1,4 +1,5 @@
 node_modules
 *.vsix
 pullrequeststatusmodifier/index.js
-**/*.js
+**/cobertura*
+**/coverage

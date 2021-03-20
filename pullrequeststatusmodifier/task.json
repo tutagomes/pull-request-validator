@@ -9,8 +9,8 @@
     "author": "Arthur Faria",
     "version": {
         "Major": 0,
-        "Minor": 14,
-        "Patch": 4
+        "Minor": 15,
+        "Patch": 0
     },
     "instanceNameFormat": "PR Status Modifier",
     "groups": [
