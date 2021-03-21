@@ -1,6 +1,6 @@
 
 import { PRMStatusodifier } from '../pullrequestmodifier'
-import { taskLibRelease, defaults } from './helpers'
+import { taskLibRelease, defaults, taskLibManual, taskLibManualWithUpdate } from './helpers'
 import { when } from 'jest-when'
 
 describe('Initial Tests', () => {
@@ -102,6 +102,55 @@ describe('Release Config Tests', () => {
 })
 
 describe('Build Config Tests', () => {
-
+    test('Ensure will try to update status', async () => {
+        const gitApi = {
+            createPullRequestStatus: jest.fn(),
+            updatePullRequest: jest.fn(),
+            getPullRequests: jest.fn()
+        }
+        gitApi.createPullRequestStatus.mockReturnValue({
+            createdBy: {
+                id: false
+            }
+        })
+        gitApi.getPullRequests.mockReturnValue([
+            {
+                pullRequestId: 5
+            }
+        ])
+        let pr = new PRMStatusodifier(gitApi)
+        await pr.loadAndParseSettings(taskLibManual)
+        await pr.createPullRequestStatus()
+        await pr.updatePullRequest()
+        expect(gitApi.createPullRequestStatus).toHaveBeenCalled()
+        expect(pr.createdBy).not.toBe(false)                
+        expect(gitApi.updatePullRequest).not.toHaveBeenCalled()
+        expect(pr.config.pullRequestId).toBe(5)
+    })
+    test('Ensure will try to update status and autocomplete', async () => {
+        const gitApi = {
+            createPullRequestStatus: jest.fn(),
+            updatePullRequest: jest.fn(),
+            getPullRequests: jest.fn()
+        }
+        gitApi.createPullRequestStatus.mockReturnValue({
+            createdBy: {
+                id: false
+            }
+        })
+        gitApi.getPullRequests.mockReturnValue([
+            {
+                pullRequestId: 5
+            }
+        ])
+        let pr = new PRMStatusodifier(gitApi)
+        await pr.loadAndParseSettings(taskLibManualWithUpdate)
+        await pr.createPullRequestStatus()
+        await pr.updatePullRequest()
+        expect(gitApi.createPullRequestStatus).toHaveBeenCalled()
+        expect(pr.createdBy).not.toBe(false)                
+        expect(gitApi.updatePullRequest).toHaveBeenCalled()
+        expect(pr.config.pullRequestId).toBe(5)
+    })
 })
 

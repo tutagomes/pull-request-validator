@@ -64,4 +64,24 @@ when(taskLibManual.getInput).calledWith('prstatus', true).mockReturnValue(defaul
 when(taskLibManual.getInput).calledWith('prstatus', true).mockReturnValue(defaults.prstatus);
 when(taskLibManual.getInput).calledWith('autocomplete', true).mockReturnValue(defaults.autocomplete);
 
-export { defaults, taskLibBuild, taskLibRelease, taskLibManual }
+
+let taskLibManualWithUpdate =  {
+    getInput: jest.fn(),
+    getVariable: jest.fn()
+}
+
+when(taskLibManualWithUpdate.getVariable).calledWith('Agent.JobName').mockReturnValue('Release');
+when(taskLibManualWithUpdate.getInput).calledWith('msgvalidacao').mockReturnValue(defaults.msgValidacao);
+when(taskLibManualWithUpdate.getInput).calledWith('getDefaults').mockReturnValue('false');
+when(taskLibManualWithUpdate.getInput).calledWith('targetbranch').mockReturnValue(defaults.manualTarget);
+when(taskLibManualWithUpdate.getInput).calledWith('sourcebranch').mockReturnValue(defaults.manualSource);
+when(taskLibManualWithUpdate.getInput).calledWith('repoId').mockReturnValue(defaults.projectId);
+when(taskLibManualWithUpdate.getInput).calledWith('projectId').mockReturnValue(defaults.projectId);
+when(taskLibManualWithUpdate.getInput).calledWith('prstatus', true).mockReturnValue(defaults.prstatus);
+when(taskLibManualWithUpdate.getInput).calledWith('prstatus', true).mockReturnValue(defaults.prstatus);
+when(taskLibManualWithUpdate.getInput).calledWith('autocomplete', true).mockReturnValue("2");
+when(taskLibManualWithUpdate.getInput).calledWith('mergestrategy', true).mockReturnValue("2");
+when(taskLibManualWithUpdate.getInput).calledWith('deletesourcebranch', true).mockReturnValue("true");
+when(taskLibManualWithUpdate.getInput).calledWith('closeworkitens', true).mockReturnValue("true");
+
+export { defaults, taskLibBuild, taskLibRelease, taskLibManual, taskLibManualWithUpdate }
