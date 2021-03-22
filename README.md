@@ -1,3 +1,5 @@
+[![Build status](https://dev.azure.com/tutagomes/Azure%20DevOps%20Extensions/_apis/build/status/Azure%20DevOps%20Extensions-CI)](https://dev.azure.com/tutagomes/Azure%20DevOps%20Extensions/_build/latest?definitionId=18)
+
 ## Introdução
 
 Uma simples extensão para adicionar aprovações de forma programática ao Pull Request.
